@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">SOCKS5 VPN</string>
+    <string name="channel_name">VPN Service</string>
+    <string name="channel_description">VPN connection status</string>
+</resources>
+

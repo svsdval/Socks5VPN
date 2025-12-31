@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TextView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/logText"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:fontFamily="monospace"
+    android:textSize="10sp"
+    android:textColor="#CCCCCC"
+    android:paddingStart="4dp"
+    android:paddingEnd="4dp"
+    android:paddingTop="1dp"
+    android:paddingBottom="1dp"/>

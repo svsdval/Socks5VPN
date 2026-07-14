@@ -77,8 +77,23 @@ public class Socks5VpnService extends VpnService {
         logManager = LogManager.getInstance();
         createNotificationChannel();
         
-        RouteManager.getInstance().load(this);
-        
+        RouteManager routeManager = RouteManager.getInstance();
+        routeManager.load(this);
+
+        if (!routeManager.getProxyHosts().isEmpty() || !routeManager.getBlockHosts().isEmpty()) {
+            logManager.w(TAG, "Правила по доменам работают только для plaintext DNS-запросов, " +
+                    "проходящих через сам VPN. DNS-over-HTTPS/TLS и уже закэшированные ОС ответы " +
+                    "эти правила не увидят - для такого трафика применяются только IP-правила.");
+        }
+
+        AppRuleManager appRuleManager = AppRuleManager.getInstance();
+        appRuleManager.load(this);
+
+        if (!appRuleManager.isEmpty() && Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            logManager.w(TAG, "Правила по приложениям требуют Android 10+ - на этой версии " +
+                    "Android они не будут применяться, трафик пойдёт по IP/доменным правилам.");
+        }
+
         statsHandler = new Handler(Looper.getMainLooper());
         Log.d(TAG, "VpnService created");
     }

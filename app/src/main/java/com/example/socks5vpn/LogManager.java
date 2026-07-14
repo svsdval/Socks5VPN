@@ -26,7 +26,8 @@ public class LogManager {
         ERROR("E", 0xFFF44336),
         PROXY("P", 0xFF4CAF50),
         DIRECT("→", 0xFF9C27B0),
-        BLOCK("✕", 0xFFE91E63);
+        BLOCK("✕", 0xFFE91E63),
+        DNS("🔍", 0xFF00BCD4);
         
         public final String symbol;
         public final int color;
@@ -108,6 +109,10 @@ public class LogManager {
     
     public void block(String tag, String message) {
         log(LogLevel.BLOCK, tag, message);
+    }
+
+    public void dns(String tag, String message) {
+        log(LogLevel.DNS, tag, message);
     }
     
     public List<LogEntry> getLogs() {

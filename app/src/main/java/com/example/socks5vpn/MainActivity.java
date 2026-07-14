@@ -36,6 +36,7 @@ public class MainActivity extends AppCompatActivity implements Socks5VpnService.
     private SwitchMaterial blockUdpSwitch;
     private MaterialButton connectButton;
     private MaterialButton routesButton;
+    private MaterialButton appRoutesButton;
     private ImageView statusIcon;
     private TextView statusText;
     private TextView statsText;
@@ -93,6 +94,7 @@ public class MainActivity extends AppCompatActivity implements Socks5VpnService.
         blockUdpSwitch = findViewById(R.id.blockUdpSwitch);
         connectButton = findViewById(R.id.connectButton);
         routesButton = findViewById(R.id.routesButton);
+        appRoutesButton = findViewById(R.id.appRoutesButton);
         statusIcon = findViewById(R.id.statusIcon);
         statusText = findViewById(R.id.statusText);
         statsText = findViewById(R.id.statsText);
@@ -105,6 +107,7 @@ public class MainActivity extends AppCompatActivity implements Socks5VpnService.
         
         connectButton.setOnClickListener(v -> toggleVpn());
         routesButton.setOnClickListener(v -> openRoutesActivity());
+        appRoutesButton.setOnClickListener(v -> openAppRoutesActivity());
         clearLogsButton.setOnClickListener(v -> {
             LogManager.getInstance().clear();
             logAdapter.clear();
@@ -125,6 +128,11 @@ public class MainActivity extends AppCompatActivity implements Socks5VpnService.
     
     private void openRoutesActivity() {
         Intent intent = new Intent(this, RoutesActivity.class);
+        startActivity(intent);
+    }
+
+    private void openAppRoutesActivity() {
+        Intent intent = new Intent(this, AppRoutesActivity.class);
         startActivity(intent);
     }
     
@@ -259,6 +267,7 @@ public class MainActivity extends AppCompatActivity implements Socks5VpnService.
         password.setEnabled(enabled);
         blockUdpSwitch.setEnabled(enabled);
         routesButton.setEnabled(enabled);
+        appRoutesButton.setEnabled(enabled);
     }
     
     @Override

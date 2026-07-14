@@ -216,6 +216,14 @@
                 android:textColor="@color/text_secondary"
                 android:padding="8dp"/>
 
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="⚠️ Правила по доменам определяются по перехваченным DNS-ответам. Если приложение использует DNS-over-HTTPS/TLS (например, Private DNS в Android или встроенный DoH в браузере) либо уже закэшировало IP до подключения VPN, доменное правило может не сработать — тогда действует только правило по IP."
+                android:textSize="12sp"
+                android:textColor="@color/text_secondary"
+                android:padding="8dp"/>
+
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/saveButton"
                 android:layout_width="match_parent"

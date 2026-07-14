@@ -1,6 +1,7 @@
 package com.example.socks5vpn;
 
 import android.net.VpnService;
+import android.system.OsConstants;
 import android.util.Log;
 
 import java.io.FileOutputStream;
@@ -22,52 +23,60 @@ public class TcpHandler {
     private static final String TAG = "TCP";
     private static final int BUFFER_SIZE = 16384;
     private static final int CONNECT_TIMEOUT = 10000;
-    
+
     private final VpnConfig config;
     private final VpnService vpnService;
     private final RouteManager routeManager;
+    private final AppRuleManager appRuleManager;
     private final TrafficStats trafficStats;
     private final LogManager logManager;
     private final ExecutorService executorService;
     private final Map<String, TcpConnection> connections;
     private volatile boolean running;
     private final AtomicInteger connectionCounter = new AtomicInteger(0);
-    
+
     public TcpHandler(VpnConfig config, VpnService vpnService) {
         this.config = config;
         this.vpnService = vpnService;
         this.routeManager = RouteManager.getInstance();
+        this.appRuleManager = AppRuleManager.getInstance();
         this.trafficStats = TrafficStats.getInstance();
         this.logManager = LogManager.getInstance();
         this.executorService = Executors.newCachedThreadPool();
         this.connections = new ConcurrentHashMap<>();
         this.running = true;
-        
+
         Log.d(TAG, "TcpHandler initialized");
         logManager.i(TAG, "TCP Handler started");
     }
-    
+
     public void handlePacket(Packet packet, FileOutputStream vpnOutput) {
         if (!running) return;
-        
+
         String connectionKey = getConnectionKey(packet);
         TcpConnection connection = connections.get(connectionKey);
-        
-        int payloadSize = packet.ip4Header.totalLength - 
-                          packet.ip4Header.headerLength - 
+
+        int payloadSize = packet.ip4Header.totalLength -
+                          packet.ip4Header.headerLength -
                           packet.tcpHeader.headerLength;
-        
+
         trafficStats.addPacketOut();
         trafficStats.addBytesOut(packet.ip4Header.totalLength);
-        
+
         if (packet.tcpHeader.isSYN() && !packet.tcpHeader.isACK()) {
+            InetAddress sourceAddr = packet.ip4Header.sourceAddress;
+            int sourcePort = packet.tcpHeader.sourcePort;
             InetAddress destAddr = packet.ip4Header.destinationAddress;
             int destPort = packet.tcpHeader.destinationPort;
             String dest = destAddr.getHostAddress() + ":" + destPort;
-            
-            // Определяем действие по правилам маршрутизации
-            RouteManager.RouteAction action = routeManager.getActionForIp(destAddr);
-            
+
+            // Определяем действие по правилам маршрутизации (IP/домен),
+            // затем объединяем с правилом для приложения-владельца соединения.
+            RouteManager.RouteAction ipAction = routeManager.getActionForIp(destAddr);
+            RouteManager.RouteAction appAction = appRuleManager.getActionForConnection(
+                    vpnService, OsConstants.IPPROTO_TCP, sourceAddr, sourcePort, destAddr, destPort);
+            RouteManager.RouteAction action = RouteManager.combine(ipAction, appAction);
+
             if (connection != null) {
                 connection.close();
                 connections.remove(connectionKey);

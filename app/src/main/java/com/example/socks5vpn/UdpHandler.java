@@ -1,6 +1,7 @@
 package com.example.socks5vpn;
 
 import android.net.VpnService;
+import android.system.OsConstants;
 import android.util.Log;
 
 import java.io.FileOutputStream;
@@ -15,18 +16,20 @@ import java.util.concurrent.Executors;
 public class UdpHandler {
     private static final String TAG = "UDP";
     private static final int UDP_TIMEOUT = 10000;
-    
+
     private final VpnService vpnService;
     private final RouteManager routeManager;
+    private final AppRuleManager appRuleManager;
     private final TrafficStats trafficStats;
     private final LogManager logManager;
     private final ExecutorService executorService;
     private volatile boolean running;
     private volatile boolean blockAllUdp;
-    
+
     public UdpHandler(VpnService vpnService, boolean blockAllUdp) {
         this.vpnService = vpnService;
         this.routeManager = RouteManager.getInstance();
+        this.appRuleManager = AppRuleManager.getInstance();
         this.trafficStats = TrafficStats.getInstance();
         this.logManager = LogManager.getInstance();
         this.executorService = Executors.newCachedThreadPool();
@@ -67,9 +70,12 @@ public class UdpHandler {
             return;
         }
         
-        // Проверяем правила маршрутизации
-        RouteManager.RouteAction action = routeManager.getActionForIp(dstAddr);
-        
+        // Проверяем правила маршрутизации (IP/домен + приложение-владелец)
+        RouteManager.RouteAction ipAction = routeManager.getActionForIp(dstAddr);
+        RouteManager.RouteAction appAction = appRuleManager.getActionForConnection(
+                vpnService, OsConstants.IPPROTO_UDP, srcAddr, srcPort, dstAddr, dstPort);
+        RouteManager.RouteAction action = RouteManager.combine(ipAction, appAction);
+
         if (action == RouteManager.RouteAction.BLOCK) {
             logManager.block(TAG, dest + " (" + payloadSize + "B)");
             trafficStats.addBlockedConnection();
@@ -89,35 +95,46 @@ public class UdpHandler {
         });
     }
     
-    private void forwardUdp(InetAddress srcAddr, int srcPort, 
+    private void forwardUdp(InetAddress srcAddr, int srcPort,
                            InetAddress dstAddr, int dstPort,
                            byte[] payload, FileOutputStream vpnOutput) {
         DatagramSocket socket = null;
         try {
             socket = new DatagramSocket();
             socket.setSoTimeout(UDP_TIMEOUT);
-            
+
             if (vpnService != null) {
                 vpnService.protect(socket);
             }
-            
+
+            // connect() ограничивает приём только пакетами от dstAddr:dstPort,
+            // иначе receive() принял бы UDP-пакет от любого источника, попавшего
+            // в этот же локальный порт (актуально для DNS-снупинга ниже).
+            socket.connect(dstAddr, dstPort);
+
+            int expectedDnsId = (dstPort == 53) ? DnsUtils.readTransactionId(payload, payload.length) : -1;
+
             DatagramPacket outPacket = new DatagramPacket(payload, payload.length, dstAddr, dstPort);
             socket.send(outPacket);
-            
+
             byte[] receiveBuffer = new byte[4096];
             DatagramPacket inPacket = new DatagramPacket(receiveBuffer, receiveBuffer.length);
             socket.receive(inPacket);
-            
+
             int receivedLength = inPacket.getLength();
             trafficStats.addBytesIn(receivedLength);
             trafficStats.addPacketIn();
             trafficStats.addDirectConnection();
-            
+
             logManager.d(TAG, "← " + dstAddr.getHostAddress() + ":" + dstPort + " (" + receivedLength + "B)");
-            
-            sendUdpResponse(dstAddr, dstPort, srcAddr, srcPort, 
+
+            if (dstPort == 53) {
+                snoopDnsResponse(receiveBuffer, receivedLength, expectedDnsId);
+            }
+
+            sendUdpResponse(dstAddr, dstPort, srcAddr, srcPort,
                            receiveBuffer, receivedLength, vpnOutput);
-            
+
         } catch (Exception e) {
             logManager.w(TAG, dstAddr.getHostAddress() + ":" + dstPort + " - " + e.getMessage());
         } finally {
@@ -126,7 +143,39 @@ public class UdpHandler {
             }
         }
     }
-    
+
+    /**
+     * Разбирает DNS-ответ от реального DNS-сервера, логирует само доменное
+     * имя, к которому было обращение (даже если оно не резолвилось в IPv4),
+     * и запоминает соответствие IP -> доменное имя в RouteManager, чтобы
+     * правила по доменным именам (proxyHosts/blockHosts) могли применяться
+     * к последующим TCP/UDP пакетам на этот IP, где имя хоста уже недоступно.
+     * expectedDnsId должен совпадать с transaction ID отправленного запроса -
+     * вместе с connect() сокета это защищает RouteManager от отравления
+     * поддельными ответами.
+     */
+    private void snoopDnsResponse(byte[] data, int length, int expectedDnsId) {
+        try {
+            DnsUtils.DnsAnswer answer = DnsUtils.parseResponse(data, length, expectedDnsId);
+            if (answer == null) return;
+
+            RouteManager.RouteAction hostAction = routeManager.getActionForHost(answer.queryName);
+            String actionSuffix = hostAction == RouteManager.RouteAction.DIRECT ? "" : " [" + hostAction + "]";
+
+            if (answer.addresses.isEmpty()) {
+                logManager.dns(TAG, answer.queryName + " (без A-записи)" + actionSuffix);
+                return;
+            }
+
+            for (String ip : answer.addresses) {
+                routeManager.recordDnsMapping(answer.queryName, ip, answer.ttlSeconds);
+            }
+            logManager.dns(TAG, answer.queryName + " -> " + answer.addresses + actionSuffix);
+        } catch (Exception e) {
+            // Игнорируем некорректные DNS-пакеты
+        }
+    }
+
     private void sendUdpResponse(InetAddress srcAddr, int srcPort,
                                 InetAddress dstAddr, int dstPort,
                                 byte[] payload, int payloadLength,

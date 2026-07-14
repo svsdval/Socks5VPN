@@ -313,6 +313,17 @@
                 app:icon="@android:drawable/ic_menu_manage"
                 app:iconGravity="start"/>
 
+            <!-- App Routes Button -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/appRoutesButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="App Routing"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                app:icon="@android:drawable/ic_menu_agenda"
+                app:iconGravity="start"/>
+
         </LinearLayout>
 
     </ScrollView>

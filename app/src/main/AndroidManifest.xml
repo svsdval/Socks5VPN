@@ -6,6 +6,11 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Нужно, чтобы показать пользователю ПОЛНЫЙ список установленных приложений
+         на экране выбора правил по приложениям (Android 11+ по умолчанию скрывает
+         большинство пакетов без этого разрешения или <queries>). -->
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
+        tools:ignore="QueryAllPackages" />
 
     <application
         android:allowBackup="true"
@@ -29,6 +34,11 @@
 
         <activity
     android:name=".RoutesActivity"
+    android:exported="false"
+    android:theme="@style/Theme.Socks5VPN" />
+
+        <activity
+    android:name=".AppRoutesActivity"
     android:exported="false"
     android:theme="@style/Theme.Socks5VPN" />
 
